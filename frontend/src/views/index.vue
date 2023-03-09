@@ -40,7 +40,7 @@
     
     <div class="card">
       <div class="card-header">
-        <p class="card-title">修改备注（CK和WSCK同步）</p>
+        <p class="card-title">修改备注</p>
       </div>
       <div class="card-body text-center">
         <el-input v-model="remark" size="small" clearable class="my-4 w-full" />
@@ -135,14 +135,10 @@ export default {
     const delAccount = async () => {
       const eid = localStorage.getItem('eid')
       const body = await delAccountAPI({ eid })
-      if (body.code !== 200) {
-        ElMessage.error(body.message)
-      } else {
-        ElMessage.success(body.message)
-        setTimeout(() => {
-          logout()
-        }, 1000)
-      }
+      ElMessage.success(body.message)
+      setTimeout(() => {
+        logout()
+      }, 1000)
     }
     
     const changeremark = async () => {
@@ -165,6 +161,9 @@ export default {
           ElMessage.error(wsbody.message)
         }
       }
+      setTimeout(() => {
+        location.reload()
+      }, 1000)
     }
     
     const WSCKLogin = async () => {
