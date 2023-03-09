@@ -5,7 +5,7 @@
         <p class="card-title">个人中心</p>
       </div>
       <div class="card-body">
-        <p>昵称：{{ nickName }}</p>
+        <p>备注：{{ nickName }}</p>
         <p>更新时间：{{ timestamp }}</p>
       </div>
       <div class="card-footer">
@@ -14,7 +14,7 @@
       </div>
     </div>
     
-    <div class="card">
+    <div class="card" v-if="false">
       <div class="card-header">
           <p class="card-title">WSCK 录入</p>
             <div class="card-body text-base leading-6">
@@ -86,7 +86,6 @@ import { ElMessage } from 'element-plus'
 export default {
   setup() {
     const router = useRouter()
-    const route = useRoute()
 
     let data = reactive({
       remark: '',

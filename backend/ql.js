@@ -48,7 +48,7 @@ module.exports.addEnv = async (cookie, remarks) => {
     json: [{
       name: 'JD_COOKIE',
       value: cookie,
-      remarks,
+      remarks
     }],
     headers: {
       Accept: 'application/json',
@@ -68,9 +68,25 @@ module.exports.updateEnv = async (cookie, eid, remarks) => {
     json: {
       name: 'JD_COOKIE',
       value: cookie,
-      _id: eid,
+      id: eid,
       remarks,
     },
+    headers: {
+      Accept: 'application/json',
+      authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json;charset=UTF-8',
+    },
+  }).json();
+  return body;
+};
+
+module.exports.enableEnv = async (eid) => {
+  const token = await getToken();
+  const body = await api({
+    method: 'put',
+    url: 'api/envs/enable',
+    params: { t: Date.now() },
+    json: [eid],
     headers: {
       Accept: 'application/json',
       authorization: `Bearer ${token}`,
@@ -148,7 +164,7 @@ module.exports.updateWSCKEnv = async (jdwsck, wseid, remarks) => {
     json: {
       name: 'JD_WSCK',
       value: jdwsck,
-      _id: wseid,
+      id: wseid,
       remarks,
     },
     headers: {

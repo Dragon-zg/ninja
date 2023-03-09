@@ -46,7 +46,7 @@ router.get('/api/status', (ctx) => {
 
 router.get('/api/info', async (ctx) => {
   const data = await User.getPoolInfo();
-  debugger
+  // debugger
   ctx.body = { data };
 });
 

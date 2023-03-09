@@ -6,7 +6,7 @@ const got1 = require('got');
 require('dotenv').config();
 const QRCode = require('qrcode');
 // 新增  , addWSCKEnv, delWSCKEnv, getWSCKEnvs, getWSCKEnvsCount, updateWSCKEnv
-const { addEnv, delEnv, getEnvs, getEnvsCount, updateEnv , addWSCKEnv, delWSCKEnv, getWSCKEnvs, getWSCKEnvsCount, updateWSCKEnv } = require('./ql');
+const { addEnv, delEnv, getEnvs, getEnvsCount, updateEnv , enableEnv, addWSCKEnv, delWSCKEnv, getWSCKEnvs, getWSCKEnvsCount, updateWSCKEnv } = require('./ql');
 const path = require('path');
 const qlDir = process.env.QL_DIR || '/ql';
 const notifyFile = path.join(qlDir, 'shell/notify.sh');
@@ -208,16 +208,23 @@ module.exports = class User {
         if (body.code !== 200) {
           throw new UserError(body.message || '添加账户错误，请重试', 220, body.code || 200);
         }
-        this.eid = body.data[0]._id;
+        this.eid = body.data[0].id;
         this.timestamp = body.data[0].timestamp;
         message = `注册成功，${this.nickName}`;
         this.#sendNotify('Ninja 运行通知', `用户 ${this.nickName}(${decodeURIComponent(this.pt_pin)}) 已上线`);
       }
     } else {
-      this.eid = env._id;
+      this.eid = env.id;
       const body = await updateEnv(this.cookie, this.eid);
       if (body.code !== 200) {
         throw new UserError(body.message || '更新账户错误，请重试', 221, body.code || 200);
+      }
+      //禁用状态下重新启用
+      if(body.data.status == 1){
+        const body = await enableEnv(this.eid);
+        if (body.code !== 200) {
+          throw new UserError(body.message || '账户启用失败', 221, body.code || 200);
+        }
       }
       this.timestamp = body.data.timestamp;
       message = `欢迎回来，${this.nickName}`;
@@ -233,7 +240,7 @@ module.exports = class User {
 
   async getUserInfoByEid() {
     const envs = await getEnvs();
-    const env = await envs.find((item) => item._id === this.eid);
+    const env = await envs.find((item) => item.id == this.eid);
     if (!env) {
       throw new UserError('没有找到这个账户，重新登录试试看哦', 230, 200);
     }
@@ -245,7 +252,8 @@ module.exports = class User {
     }
     await this.#getNickname();
     return {
-      nickName: this.nickName,
+      // nickName: this.nickName,
+      nickName: this.remark,
       eid: this.eid,
       timestamp: this.timestamp,
       remark: this.remark,
@@ -258,7 +266,7 @@ module.exports = class User {
     }
 
     const envs = await getEnvs();
-    const env = await envs.find((item) => item._id === this.eid);
+    const env = await envs.find((item) => item.id == this.eid);
     if (!env) {
       throw new UserError('没有找到这个ck账户，重新登录试试看哦', 230, 200);
     }
@@ -308,13 +316,13 @@ module.exports = class User {
         if (body.code !== 200) {
           throw new UserError(body.message || '添加账户错误，请重试', 220, body.code || 200);
         }
-        this.wseid = body.data[0]._id;
+        this.wseid = body.data[0].id;
         this.timestamp = body.data[0].timestamp;
         message = `录入成功，${this.pin}`;
         this.#sendNotify('Ninja 运行通知', `用户 ${this.pin} WSCK 添加成功`);
       }
     } else {
-      this.wseid = env._id;
+      this.wseid = env.id;
       const body = await updateWSCKEnv(this.jdwsck, this.wseid);
       if (body.code !== 200) {
         throw new UserError(body.message || '更新账户错误，请重试', 221, body.code || 200);
@@ -337,7 +345,7 @@ module.exports = class User {
   //不查nickname了，用remark代替
   async getWSCKUserInfoByEid() {
     const envs = await getWSCKEnvs();
-    const env = await envs.find((item) => item._id === this.wseid);
+    const env = await envs.find((item) => item.id === this.wseid);
     if (!env) {
       throw new UserError('没有找到这个账户，重新登录试试看哦', 230, 200);
     }
@@ -362,7 +370,7 @@ module.exports = class User {
     }
 
     const envs = await getWSCKEnvs();
-    const env = await envs.find((item) => item._id === this.wseid);
+    const env = await envs.find((item) => item.id === this.wseid);
     if (!env) {
       throw new UserError('没有找到这个wskey账户，重新登录试试看哦', 230, 200);
     }
@@ -425,42 +433,48 @@ module.exports = class User {
   }
 
   async #getNickname(nocheck) {
-    let body;
-    let body_bak;
-    body = await api({
-      url: `https://me-api.jd.com/user_new/info/GetJDUserInfoUnion?orgFlag=JD_PinGou_New&callSource=mainorder&channel=4&isHomewhite=0&sceneval=2&_=${Date.now()}&sceneval=2&g_login_type=1&g_ty=ls`,
-      headers: {
-        Accept: '*/*',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Accept-Language': 'zh-cn',
-        Connection: 'keep-alive',
-        Cookie: this.cookie,
-        Referer: 'https://home.m.jd.com/myJd/newhome.action',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36',
-        Host: 'me-api.jd.com',
-      },
-    }).json();
+    this.nickName = decodeURIComponent(this.pt_pin);
 
-    if (!body.data?.userInfo && !nocheck) {
-      body_bak = await api({
-        url: `https://wq.jd.com/user_new/info/GetJDUserInfoUnion?orgFlag=JD_PinGou_New&callSource=mainorder`,
-        headers: {
-          Connection: 'keep-alive',
-          Cookie: this.cookie,
-          Referer: 'https://home.m.jd.com/myJd/home.action',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36',
-        },
-      }).json();
-    }
+    //不在调用jd接口
+
+    // let body;
+    // let body_bak;
+    // body = await api({
+    //   url: `https://me-api.jd.com/user_new/info/GetJDUserInfoUnion?orgFlag=JD_PinGou_New&callSource=mainorder&channel=4&isHomewhite=0&sceneval=2&_=${Date.now()}&sceneval=2&g_login_type=1&g_ty=ls`,
+    //   headers: {
+    //     Accept: '*/*',
+    //     'Accept-Encoding': 'gzip, deflate, br',
+    //     'Accept-Language': 'zh-cn',
+    //     Connection: 'keep-alive',
+    //     Cookie: this.cookie,
+    //     Referer: 'https://home.m.jd.com/myJd/newhome.action',
+    //     'User-Agent':
+    //       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36',
+    //     Host: 'me-api.jd.com',
+    //   },
+    // }).json();
+
+    // if (!body.data?.userInfo && !nocheck) {
+    //   body_bak = await api({
+    //     url: `https://wq.jd.com/user_new/info/GetJDUserInfoUnion?orgFlag=JD_PinGou_New&callSource=mainorder`,
+    //     headers: {
+    //       Connection: 'keep-alive',
+    //       Cookie: this.cookie,
+    //       Referer: 'https://home.m.jd.com/myJd/home.action',
+    //       'User-Agent':
+    //         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36',
+    //     },
+    //   }).json();
+    // }
     
-    if (!body.data?.userInfo && !body_bak?.data.userInfo && this.jdwsck && !nocheck) {
-      throw new UserError('获取用户信息失败，请检查您的 wskey ！', 201, 200);
-    } else if (!body.data?.userInfo && !body_bak?.data.userInfo && !nocheck) {
-      throw new UserError('获取用户信息失败，请检查您的 cookie ！', 201, 200);
-    }
-    this.nickName = (body.data?.userInfo.baseInfo.nickname || body_bak?.data.userInfo.baseInfo.nickname) || decodeURIComponent(this.pt_pin);
+    // if (!body.data?.userInfo && !body_bak?.data.userInfo && this.jdwsck && !nocheck) {
+    //   throw new UserError('获取用户信息失败，请检查您的 wskey ！', 201, 200);
+    // } else if (!body.data?.userInfo && !body_bak?.data.userInfo && !nocheck) {
+    //   throw new UserError('获取用户信息失败，请检查您的 cookie ！', 201, 200);
+    // }
+    // this.nickName = (body.data?.userInfo.baseInfo.nickname || body_bak?.data.userInfo.baseInfo.nickname) || decodeURIComponent(this.pt_pin);
+
+
 
     // if (!body.data?.userInfo && this.jdwsck) {
     //   throw new UserError('获取用户信息失败，请检查您的 wskey ！', 201, 200);
